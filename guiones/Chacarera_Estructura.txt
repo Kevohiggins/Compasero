@@ -1,0 +1,11 @@
+# Plantilla de Guion: Chacarera Tradicional
+# Estructura: 8 compases de intro (silencio), 8 compases de estrofa (bajar), 8 silencio, 8 bajar, 4 silencio (coda)
+BPM: 140
+TIEMPOS_COMPAS: 6
+DISPAROS: 1, 4
+
+silencio: 8
+bajar: 8
+silencio: 8
+bajar: 8
+silencio: 4

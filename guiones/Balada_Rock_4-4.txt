@@ -1,0 +1,12 @@
+# Plantilla de Guion: Balada / Rock 4/4 Standard
+BPM: 100
+TIEMPOS_COMPAS: 4
+DISPAROS: 1
+
+silencio: 4
+bajar: 8
+silencio: 4
+bajar: 8
+silencio: 8
+bajar: 8
+silencio: 4

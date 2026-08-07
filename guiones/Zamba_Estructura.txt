@@ -1,0 +1,11 @@
+# Plantilla de Guion: Zamba Tradicional
+# Estructura: 8 compases de intro (silencio), 12 compases de estrofa/estribillo, 4 silencio
+BPM: 72
+TIEMPOS_COMPAS: 6
+DISPAROS: 1
+
+silencio: 8
+bajar: 12
+silencio: 4
+bajar: 12
+silencio: 4

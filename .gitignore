@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+ENV/
+env/
+
+# PyInstaller / Build
+build/
+dist/
+*.exe
+SecuenciadorPiano.spec
+
+# Archivos temporales y de usuario
+config.ini
+click_hi.wav
+click_lo.wav
+auto_scroll.py
+iniciar.bat
+
+# Excluir README.md y manual.html según indicación del usuario para revisión previa
+README.md
+manual.html
