@@ -17,9 +17,30 @@ HOTKEY_ID_BASE_TOGGLE = 1000
 HOTKEY_ID_BASE_STOP = 2000
 HOTKEY_ID_BASE_TAP_TRIGGER = 3000
 
+def ensure_default_templates_exist():
+    base_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "guiones")
+    os.makedirs(base_dir, exist_ok=True)
+    
+    chacarera_path = os.path.join(base_dir, "Chacarera_Estructura.txt")
+    if not os.path.exists(chacarera_path):
+        with open(chacarera_path, 'w', encoding='utf-8') as f:
+            f.write("# Plantilla de Guion: Chacarera Tradicional\nBPM: 140\nTIEMPOS_COMPAS: 6\nDISPAROS: 1, 4\nREPOSO: 1\n\nsilencio: 8\nbajar: 8\nsilencio: 8\nbajar: 8\nsilencio: 4\n")
+
+    zamba_path = os.path.join(base_dir, "Zamba_Estructura.txt")
+    if not os.path.exists(zamba_path):
+        with open(zamba_path, 'w', encoding='utf-8') as f:
+            f.write("# Plantilla de Guion: Zamba Tradicional\nBPM: 72\nTIEMPOS_COMPAS: 6\nDISPAROS: 1\nREPOSO: 1\n\nsilencio: 8\nbajar: 12\nsilencio: 4\nbajar: 12\nsilencio: 4\n")
+
+    balada_path = os.path.join(base_dir, "Balada_Rock_4-4.txt")
+    if not os.path.exists(balada_path):
+        with open(balada_path, 'w', encoding='utf-8') as f:
+            f.write("# Plantilla de Guion: Balada / Rock 4/4 Standard\nBPM: 100\nTIEMPOS_COMPAS: 4\nDISPAROS: 1\nREPOSO: 1\n\nsilencio: 4\nbajar: 8\nsilencio: 4\nbajar: 8\nsilencio: 8\nbajar: 8\nsilencio: 4\n")
+
 class MainFrame(wx.Frame):
     def __init__(self):
         super().__init__(parent=None, title=APP_TITLE, size=(850, 750))
+        
+        ensure_default_templates_exist()
         
         self.scroller = AutoScroller(log_callback=self.update_status_log)
         self.registered_ids = []
@@ -75,14 +96,19 @@ class MainFrame(wx.Frame):
         
         row_tap1 = wx.BoxSizer(wx.HORIZONTAL)
         row_tap1.Add(wx.StaticText(tab, label="Tiempos por compás:"), flag=wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, border=5)
-        self.spin_tiempos = wx.SpinCtrl(tab, value=str(self.scroller.simple_beats_per_line), min=1, max=32, size=(60, -1))
+        self.spin_tiempos = wx.SpinCtrl(tab, value=str(self.scroller.simple_beats_per_line), min=1, max=9999, size=(75, -1))
         self.spin_tiempos.Bind(wx.EVT_SPINCTRL, self.on_simple_beats_change)
-        row_tap1.Add(self.spin_tiempos, flag=wx.RIGHT, border=20)
+        row_tap1.Add(self.spin_tiempos, flag=wx.RIGHT, border=15)
         
         row_tap1.Add(wx.StaticText(tab, label="Velocidad (BPM):"), flag=wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, border=5)
-        self.spin_bpm = wx.SpinCtrl(tab, value=str(self.scroller.simple_bpm), min=30, max=300, size=(70, -1))
+        self.spin_bpm = wx.SpinCtrl(tab, value=str(self.scroller.simple_bpm), min=30, max=999, size=(65, -1))
         self.spin_bpm.Bind(wx.EVT_SPINCTRL, self.on_simple_bpm_change)
-        row_tap1.Add(self.spin_bpm, flag=wx.RIGHT, border=20)
+        row_tap1.Add(self.spin_bpm, flag=wx.RIGHT, border=15)
+        
+        row_tap1.Add(wx.StaticText(tab, label="Compases de reposo:"), flag=wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, border=5)
+        self.spin_simple_reposo = wx.SpinCtrl(tab, value=str(self.scroller.simple_lead_in_bars), min=0, max=9999, size=(75, -1))
+        self.spin_simple_reposo.Bind(wx.EVT_SPINCTRL, self.on_simple_reposo_change)
+        row_tap1.Add(self.spin_simple_reposo, flag=wx.RIGHT, border=15)
         
         self.btn_tap = wx.Button(tab, label=f"Calibrar Ritmo (O presiona {self.tecla_call_tap})")
         self.btn_tap.Bind(wx.EVT_BUTTON, lambda e: self.on_tap_trigger())
@@ -102,7 +128,7 @@ class MainFrame(wx.Frame):
         self.chk_metronomo_sound.Bind(wx.EVT_CHECKBOX, self.on_metronome_sound_toggle)
         sizer_tap.Add(self.chk_metronomo_sound, flag=wx.LEFT | wx.BOTTOM, border=5)
         
-        self.lbl_bpm_info = wx.StaticText(tab, label=f"Modo Simple: {self.scroller.simple_bpm} BPM | {self.scroller.simple_beats_per_line} tiempos por compás.")
+        self.lbl_bpm_info = wx.StaticText(tab, label=f"Modo Simple: {self.scroller.simple_bpm} BPM | {self.scroller.simple_beats_per_line} tiempos por compás | {self.scroller.simple_lead_in_bars} compás(es) reposo.")
         sizer_tap.Add(self.lbl_bpm_info, flag=wx.LEFT | wx.BOTTOM, border=5)
         
         vbox.Add(sizer_tap, flag=wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, border=10)
@@ -119,8 +145,14 @@ class MainFrame(wx.Frame):
         self.scroller.simple_bpm = val
         self.update_simple_bpm_label()
 
+    def on_simple_reposo_change(self, event):
+        val = self.spin_simple_reposo.GetValue()
+        self.scroller.simple_lead_in_bars = val
+        self.update_simple_bpm_label()
+        self.save_config()
+
     def update_simple_bpm_label(self):
-        self.lbl_bpm_info.SetLabel(f"Modo Simple: {self.scroller.simple_bpm} BPM | {self.scroller.simple_beats_per_line} tiempos por compás.")
+        self.lbl_bpm_info.SetLabel(f"Modo Simple: {self.scroller.simple_bpm} BPM | {self.scroller.simple_beats_per_line} tiempos por compás | {self.scroller.simple_lead_in_bars} compás(es) reposo.")
 
     def on_tap_trigger(self):
         now = time.time()
@@ -256,15 +288,20 @@ class MainFrame(wx.Frame):
         sizer_script_params = wx.StaticBoxSizer(box_script_params, wx.VERTICAL)
         
         row_s1 = wx.BoxSizer(wx.HORIZONTAL)
-        row_s1.Add(wx.StaticText(tab, label="Tiempos por compás del Guion:"), flag=wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, border=5)
-        self.spin_script_tiempos = wx.SpinCtrl(tab, value=str(self.scroller.script_beats_per_line), min=1, max=32, size=(60, -1))
+        row_s1.Add(wx.StaticText(tab, label="Tiempos por compás:"), flag=wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, border=5)
+        self.spin_script_tiempos = wx.SpinCtrl(tab, value=str(self.scroller.script_beats_per_line), min=1, max=9999, size=(75, -1))
         self.spin_script_tiempos.Bind(wx.EVT_SPINCTRL, self.on_script_beats_change)
-        row_s1.Add(self.spin_script_tiempos, flag=wx.RIGHT, border=20)
+        row_s1.Add(self.spin_script_tiempos, flag=wx.RIGHT, border=15)
         
-        row_s1.Add(wx.StaticText(tab, label="Velocidad (BPM) del Guion:"), flag=wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, border=5)
-        self.spin_script_bpm = wx.SpinCtrl(tab, value=str(self.scroller.script_bpm), min=30, max=300, size=(70, -1))
+        row_s1.Add(wx.StaticText(tab, label="Velocidad (BPM):"), flag=wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, border=5)
+        self.spin_script_bpm = wx.SpinCtrl(tab, value=str(self.scroller.script_bpm), min=30, max=999, size=(65, -1))
         self.spin_script_bpm.Bind(wx.EVT_SPINCTRL, self.on_script_bpm_change)
-        row_s1.Add(self.spin_script_bpm, flag=wx.RIGHT, border=20)
+        row_s1.Add(self.spin_script_bpm, flag=wx.RIGHT, border=15)
+        
+        row_s1.Add(wx.StaticText(tab, label="Compases de reposo:"), flag=wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, border=5)
+        self.spin_script_reposo = wx.SpinCtrl(tab, value=str(self.scroller.script_lead_in_bars), min=0, max=9999, size=(75, -1))
+        self.spin_script_reposo.Bind(wx.EVT_SPINCTRL, self.on_script_reposo_change)
+        row_s1.Add(self.spin_script_reposo)
         
         sizer_script_params.Add(row_s1, flag=wx.EXPAND | wx.ALL, border=5)
         
@@ -288,7 +325,7 @@ class MainFrame(wx.Frame):
         row_builder1.Add(self.combo_tipo_bloque, flag=wx.RIGHT, border=15)
         
         row_builder1.Add(wx.StaticText(tab, label="Cantidad de Compases: "), flag=wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, border=5)
-        self.spin_compases = wx.SpinCtrl(tab, value="8", min=1, max=200, size=(70, -1))
+        self.spin_compases = wx.SpinCtrl(tab, value="8", min=1, max=9999, size=(75, -1))
         row_builder1.Add(self.spin_compases, flag=wx.RIGHT, border=15)
         
         btn_agregar = wx.Button(tab, label="Agregar Bloque")
@@ -334,6 +371,7 @@ class MainFrame(wx.Frame):
         
         tab.SetSizer(vbox)
 
+    # --- LÓGICA DE PARÁMETROS PROPIOS DEL GUION ---
     def on_script_bpm_change(self, event):
         self.scroller.script_bpm = self.spin_script_bpm.GetValue()
         self.save_config()
@@ -341,6 +379,10 @@ class MainFrame(wx.Frame):
     def on_script_beats_change(self, event):
         self.scroller.script_beats_per_line = self.spin_script_tiempos.GetValue()
         self.update_script_disparo_choices()
+        self.save_config()
+
+    def on_script_reposo_change(self, event):
+        self.scroller.script_lead_in_bars = self.spin_script_reposo.GetValue()
         self.save_config()
 
     def update_script_disparo_choices(self):
@@ -391,6 +433,9 @@ class MainFrame(wx.Frame):
                         self.scroller.script_beats_per_line = int(line_s.split(':')[1].strip())
                         self.spin_script_tiempos.SetValue(self.scroller.script_beats_per_line)
                         self.update_script_disparo_choices()
+                    elif line_s.lower().startswith('reposo:'):
+                        self.scroller.script_lead_in_bars = int(line_s.split(':')[1].strip())
+                        self.spin_script_reposo.SetValue(self.scroller.script_lead_in_bars)
                     elif line_s.lower().startswith('disparos:'):
                         disp_raw = line_s.split(':')[1].strip()
                         beats = set([int(x)-1 for x in disp_raw.split(',') if x.strip().isdigit()])
@@ -424,13 +469,14 @@ class MainFrame(wx.Frame):
                     f.write(f"# Guion de Canción - {APP_NAME} v{APP_VERSION}\n")
                     f.write(f"BPM: {self.scroller.script_bpm}\n")
                     f.write(f"TIEMPOS_COMPAS: {self.scroller.script_beats_per_line}\n")
+                    f.write(f"REPOSO: {self.scroller.script_lead_in_bars}\n")
                     disp_str = ",".join([str(x+1) for x in sorted(list(self.scroller.script_advance_beats))])
                     f.write(f"DISPAROS: {disp_str}\n\n")
                     
                     for tipo, compases in self.scroller.script_blocks:
                         f.write(f"{tipo}: {compases}\n")
                         
-                wx.MessageBox(f"Guion guardado exitosamente en '{os.path.basename(path)}'.", "Éxito", wx.OK | wx.ICON_INFORMATION)
+                wx.MessageBox(f"Guardado exitosamente en '{os.path.basename(path)}'.", "Éxito", wx.OK | wx.ICON_INFORMATION)
             except Exception as e:
                 wx.MessageBox(f"Error guardando el guion: {e}", "Error", wx.OK | wx.ICON_ERROR)
         dlg.Destroy()
@@ -701,6 +747,7 @@ class MainFrame(wx.Frame):
                 # Cargar Modo Simple
                 self.scroller.simple_bpm = int(self.config['Atajos_Secuenciador'].get('simple_bpm', '120'))
                 self.scroller.simple_beats_per_line = int(self.config['Atajos_Secuenciador'].get('simple_beats_per_line', '4'))
+                self.scroller.simple_lead_in_bars = int(self.config['Atajos_Secuenciador'].get('simple_lead_in_bars', '1'))
                 s_beats = self.config['Atajos_Secuenciador'].get('simple_advance_beats', '0')
                 self.scroller.simple_advance_beats = set([int(x) for x in s_beats.split(',') if x.isdigit()])
                 
@@ -708,6 +755,7 @@ class MainFrame(wx.Frame):
                 if self.config.has_section('Modo_Guion'):
                     self.scroller.script_bpm = int(self.config['Modo_Guion'].get('bpm', '120'))
                     self.scroller.script_beats_per_line = int(self.config['Modo_Guion'].get('beats_per_line', '4'))
+                    self.scroller.script_lead_in_bars = int(self.config['Modo_Guion'].get('lead_in_bars', '1'))
                     g_beats = self.config['Modo_Guion'].get('advance_beats', '0')
                     self.scroller.script_advance_beats = set([int(x) for x in g_beats.split(',') if x.isdigit()])
                 
@@ -742,12 +790,14 @@ class MainFrame(wx.Frame):
         self.config['Atajos_Secuenciador']['activar_tap'] = self.tecla_call_tap
         self.config['Atajos_Secuenciador']['simple_bpm'] = str(self.scroller.simple_bpm)
         self.config['Atajos_Secuenciador']['simple_beats_per_line'] = str(self.scroller.simple_beats_per_line)
+        self.config['Atajos_Secuenciador']['simple_lead_in_bars'] = str(self.scroller.simple_lead_in_bars)
         self.config['Atajos_Secuenciador']['simple_advance_beats'] = ",".join([str(x) for x in sorted(list(self.scroller.simple_advance_beats))])
         
         if not self.config.has_section('Modo_Guion'):
             self.config.add_section('Modo_Guion')
         self.config['Modo_Guion']['bpm'] = str(self.scroller.script_bpm)
         self.config['Modo_Guion']['beats_per_line'] = str(self.scroller.script_beats_per_line)
+        self.config['Modo_Guion']['lead_in_bars'] = str(self.scroller.script_lead_in_bars)
         self.config['Modo_Guion']['advance_beats'] = ",".join([str(x) for x in sorted(list(self.scroller.script_advance_beats))])
         
         if not self.config.has_section('Guion_Bloques'):

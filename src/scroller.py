@@ -12,11 +12,13 @@ class AutoScroller:
         self.simple_bpm = 120
         self.simple_beats_per_line = 4
         self.simple_advance_beats = {0}
+        self.simple_lead_in_bars = 1
         
         # Parámetros independientes para Modo Guion Avanzado
         self.script_bpm = 120
         self.script_beats_per_line = 4
         self.script_advance_beats = {0}
+        self.script_lead_in_bars = 1
         self.script_blocks = []
         
         self.enable_metronome_sound = True
@@ -26,9 +28,8 @@ class AutoScroller:
         self.wake_event = threading.Event()
         self.tecla_avance = "down"
         self.log_callback = log_callback
-        self.is_first_bar = True
+        self.pending_lead_in_bars = 0
 
-    # Propiedades para retrocompatibilidad
     @property
     def bpm(self):
         return self.script_bpm if self.mode == "guion" else self.simple_bpm
@@ -40,6 +41,10 @@ class AutoScroller:
     @property
     def advance_beats(self):
         return self.script_advance_beats if self.mode == "guion" else self.simple_advance_beats
+
+    @property
+    def lead_in_bars(self):
+        return self.script_lead_in_bars if self.mode == "guion" else self.simple_lead_in_bars
 
     @property
     def simple_interval(self):
@@ -55,24 +60,24 @@ class AutoScroller:
     def start_or_pause(self):
         if self.is_running:
             self.is_running = False
-            self.log("\n[PAUSADO] Avance detenido exactamente en el punto actual.")
+            self.log("\n[PAUSADO] Avance detenido en el punto actual.")
         else:
             self.is_running = True
             self.stop_requested = False
+            self.pending_lead_in_bars = self.lead_in_bars  # Activar reposo CADA VEZ que se inicia o reanuda
             self.wake_event.set()
             
-            active_bpm = self.script_bpm if self.mode == "guion" else self.simple_bpm
-            active_beats_bar = self.script_beats_per_line if self.mode == "guion" else self.simple_beats_per_line
-            active_triggers = self.script_advance_beats if self.mode == "guion" else self.simple_advance_beats
+            active_bpm = self.bpm
+            active_beats_bar = self.beats_per_line
+            active_triggers = self.advance_beats
             
             tiempos_str = ", ".join([f"Tiempo {i+1}" for i in sorted(list(active_triggers))])
             if self.mode == "simple":
-                self.log(f"\n[INICIADO] Modo Simple ({active_bpm} BPM, compás de {active_beats_bar} tiempos, avanza en: {tiempos_str})...")
+                self.log(f"\n[INICIADO/REANUDADO] Modo Simple ({active_bpm} BPM, compás de {active_beats_bar} tiempos, reposo: {self.lead_in_bars} compás(es), avanza en: {tiempos_str})...")
             else:
-                self.log(f"\n[INICIADO] Modo Guion Avanzado ({active_bpm} BPM, compás de {active_beats_bar} tiempos, avanza en: {tiempos_str}): Ejecutando Bloque {self.current_block_idx + 1} de {len(self.script_blocks)}...")
+                self.log(f"\n[INICIADO/REANUDADO] Modo Guion Avanzado ({active_bpm} BPM, compás de {active_beats_bar} tiempos, reposo: {self.lead_in_bars} compás(es)): Ejecutando Bloque {self.current_block_idx + 1} de {len(self.script_blocks)}...")
 
             if not self.thread or not self.thread.is_alive():
-                self.is_first_bar = True
                 self.thread = threading.Thread(target=self._run_loop, daemon=True)
                 self.thread.start()
 
@@ -81,7 +86,7 @@ class AutoScroller:
         self.stop_requested = True
         self.wake_event.set()
         self.current_block_idx = 0
-        self.is_first_bar = True
+        self.pending_lead_in_bars = 0
         self.log("\n[DETENIDO] Reiniciado al Bloque 1, Compás 1.")
 
     def _run_loop(self):
@@ -91,16 +96,20 @@ class AutoScroller:
                 self.wake_event.clear()
                 continue
 
-            active_bpm = self.script_bpm if self.mode == "guion" else self.simple_bpm
-            active_beats_bar = self.script_beats_per_line if self.mode == "guion" else self.simple_beats_per_line
-            active_triggers = self.script_advance_beats if self.mode == "guion" else self.simple_advance_beats
+            active_bpm = self.bpm
+            active_beats_bar = self.beats_per_line
+            active_triggers = self.advance_beats
 
             num_beats = max(1, active_beats_bar)
             sec_per_beat = 60.0 / max(1, active_bpm)
 
-            # COMPÁS DE CUENTA INICIAL: El primer compás al dar Iniciar queda en blanco (sólo metrónomo, sin mover cursor)
-            if self.is_first_bar:
-                self.log("--> Compás de cuenta inicial (espera de 1 compás)...")
+            # COMPASES DE CUENTA / REPOSO CONFIGURABLES (Se ejecutan cada vez al Iniciar o Reanudar)
+            while self.pending_lead_in_bars > 0:
+                if self.stop_requested or not self.is_running: break
+                total_reposo = self.lead_in_bars
+                actual_num = total_reposo - self.pending_lead_in_bars + 1
+                self.log(f"--> Compás de reposo/cuenta ({actual_num} de {total_reposo})...")
+                
                 for b in range(num_beats):
                     if self.stop_requested or not self.is_running: break
                     play_click(is_accent=(b == 0), enable_sound=self.enable_metronome_sound)
@@ -109,7 +118,11 @@ class AutoScroller:
                     while (time.time() - start_time) < sec_per_beat:
                         if self.stop_requested or not self.is_running: break
                         time.sleep(0.005)
-                self.is_first_bar = False
+                
+                if not self.stop_requested and self.is_running:
+                    self.pending_lead_in_bars -= 1
+
+            if self.stop_requested or not self.is_running:
                 continue
 
             if self.mode == "simple":
@@ -131,7 +144,7 @@ class AutoScroller:
                     self.is_running = False
                     self.log("\n[FIN] Guion por compases completado.")
                     self.current_block_idx = 0
-                    self.is_first_bar = True
+                    self.pending_lead_in_bars = 0
                     break
 
                 tipo, cantidad_compases = self.script_blocks[self.current_block_idx]
