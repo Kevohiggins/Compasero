@@ -19,6 +19,5 @@ click_lo.wav
 auto_scroll.py
 iniciar.bat
 
-# Excluir README.md y manual.html según indicación del usuario para revisión previa
-README.md
+# Excluir manual.html
 manual.html
